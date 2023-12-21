@@ -3,7 +3,10 @@ using System.Collections.Generic;
 using UnityEngine;
 using Extensions; 
 using UnityEngine.UI; 
+using TMPro; 
 using DG.Tweening;
+
+
 public class GameManager : MonoBehaviour
 {
     //Simpler implemetation for prototype, can later be replaced with a scriptable object; 
@@ -21,10 +24,12 @@ public class GameManager : MonoBehaviour
     //this is the list for macthing pair of cards
     [SerializeField] private List<Card> _matchingList = new List<Card>(2); 
 
-
+    private int turnsMade = 0; 
     private int _p1Score; 
     private int _p2Score; 
 
+    [SerializeField] private TMP_Text _p1ScoreText; 
+    [SerializeField] private TMP_Text _p2ScoreText; 
     private bool isP1Turn = true; 
 
 
@@ -35,13 +40,17 @@ public class GameManager : MonoBehaviour
 
     [SerializeField] private AudioSource[] _turnSounds; 
     
-
+    [SerializeField] private bool canPlay = false; 
     void Start()
     {
         CreateDeck(); 
         ShuffleDeck(); 
         StartCoroutine("DistributeCards"); 
-        HandlePlayerTurn(); 
+        // HandlePlayerTurn(); 
+
+        _p1Button.interactable = true;  // Enable player 1's button
+        _p2Button.interactable = false; 
+
     }
 
     void CreateDeck()
@@ -66,71 +75,67 @@ public class GameManager : MonoBehaviour
             Card nextCard = _activeDeck[index];  
             _activeDeck.RemoveAt(index);          
 
-            if (_activeDeck.Count % 2 == 0)  // Even card count, player 1's deck
+            if (_activeDeck.Count % 2 == 0)
             {
                 _p1Cards.Add(nextCard);
-                // nextCard.transform.position = _spawns[0].position;
-                // nextCard.transform.DOMove(nextCard.transform.position, _spawns[0].position);
+               
                 TweenTransform(nextCard.transform, _spawns[0], 0.3f);  
                 yield return new WaitForSeconds(0.01f); 
     
             }
-            else                            // Odd card count, player 2's deck
+            else                            
             {
                 _p2Cards.Add(nextCard);
 
                 TweenTransform(nextCard.transform, _spawns[1], 0.3f);  
                 yield return new WaitForSeconds(0.01f); 
-    
             }
         }
+        canPlay = true; 
     }
 
     private void HandlePlayerTurn()
     {
+        if(!canPlay) return; 
         if (isP1Turn)
         {
-            _p1Button.interactable = true;  // Enable player 1's button
-            _p2Button.interactable = false;  // Disable player 2's button
-
-            _p1Button.onClick.AddListener(() =>
-            {
-                _turnSounds[0].Play(); 
-                
-                MoveCard(); 
-                
-               
-            });
+            _turnSounds[0].Play(); 
+            MoveCard(); 
         }
         else
         {
-            _p1Button.interactable = false;  // Disable player 1's button
-            _p2Button.interactable = true;  // Enable player 2's button
-
-            _p2Button.onClick.AddListener(() =>
-            {
-               
-                _turnSounds[1].Play(); 
-
-                MoveCard(); 
-                // isP1Turn = !isP1Turn; 
-                // HandlePlayerTurn(); 
-               
-            });
+            _turnSounds[1].Play(); 
+            MoveCard(); 
         }
-
+        _p1Button.interactable = !_p1Button.interactable;  
+        _p2Button.interactable = !_p1Button.interactable;  
         isP1Turn = !isP1Turn; 
-        HandlePlayerTurn(); 
+        
+        
+        turnsMade+=1; 
     }
 
     void MoveCard()
     {
+        if(_p1Cards.Count <=0 || _p2Cards.Count <= 0) 
+        {
+            canPlay = !canPlay; 
+            return; 
+        }
+            
+
+        float z =  (float)(  -1 * (turnsMade / 1000f) );
+
+        Vector3 displacement = new Vector3(0f,0f,z); 
+        
         if(isP1Turn)
         {
             Card c = _p1Cards[0]; 
             _p1Cards.RemoveAt(0); 
            
             PutInMatchingList(c); 
+            _show[0].position+=displacement; 
+
             TweenTransform(c.transform, _show[0], 0.3f); 
         }
         else{
@@ -138,6 +143,7 @@ public class GameManager : MonoBehaviour
             _p2Cards.RemoveAt(0); 
 
             PutInMatchingList(c); 
+            _show[1].position+=displacement; 
 
             TweenTransform(c.transform, _show[1], 0.3f); 
         }
@@ -160,16 +166,64 @@ public class GameManager : MonoBehaviour
         if(_matchingList.Count<2) return; 
         if(_matchingList[0] == _matchingList[1])
         {
-            if(isP1Turn) _p1Score+=1; 
-            else _p2Score +=1; 
-
+            if(isP1Turn){
+                _p1Score+=1; 
+                //move all cards to player 1
+            } 
+            else 
+            {
+                _p2Score +=1; 
+                //move all cards to player 2
+            }
+            UpdateText(); 
             Debug.Log($"{_p1Score} {_p2Score}");  
         }
+    }
+
+    IEnumerator MoveToPlayer(int player)
+    {
+        List<Card> _listToAddTo; 
+        
+        if(player >= 3 || player <= -1) return; 
+        if(player == 1){
+            
+        }
+        else if (player == 2){
+
+        }
+        canPlay = false; 
+
+        int index = _activeDeck.Count - 1; 
+        while (_activeDeck.Count > 0)
+        {
+            Card nextCard = _activeDeck[index];  
+            _activeDeck.RemoveAt(index);          
+
+            _p1Cards.Add(nextCard);
+               
+            TweenTransform(nextCard.transform, _spawns[0], 0.3f);  
+            yield return new WaitForSeconds(0.01f); 
+        }
+        canPlay = true; 
     }
     void TweenTransform(Transform a, Transform b, float duration)
     {
         DOTween.To(()=> a.position, x=> a.position = x, b.position, duration);
     }
 
+    private void UpdateText()
+    {
+        _p1ScoreText.text = _p1Score.ToString(); 
+        _p2ScoreText.text = _p2Score.ToString(); 
+    }
+
+    public void P1()
+    {
+        HandlePlayerTurn(); 
+    }
+    public void P2()
+    {
+        HandlePlayerTurn(); 
+    }
 }
 
